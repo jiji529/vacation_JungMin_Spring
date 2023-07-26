@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.exam.myapp.bbs.BbsDao">
+<!-- 	resultMap을 사용하여 
+	조회결과의 어떤 컬럼값을 MemberVo 객체의 어떤 속성(변수)에 담을지(저장) 설정 -->	
+	<resultMap type="BbsVo" id="BbsMap">
+		<id property="bbsNo" column="bbs_no" />
+		<result property="bbsTitle" column="bbs_title" />
+		<result property="bbsContent" column="bbs_content" />
+		<result property="bbsWriter" column="bbs_writer" />
+		<result property="bbsRegDate" column="bbs_reg_date" />
+		<result property="bbsCount" column="bbs_count" />
+		
+		<!-- JOIN 조회결과를 담기 위한 resultMap 설정 -->
+		<!-- 1:1 관계이면 association 엘리먼트를, 1:N 관계이면 collection 엘리먼트를 사용 -->
+		<!--  <collection property="attachList" ofType="AttachVo">
+			<id property="attNo" column="att_no" />
+			<result property="attOrgName" column="att_org_name" />
+			<result property="attNewName" column="att_new_name" />
+			<result property="attBbsNo" column="att_bbs_no" />
+		</collection> -->
+		
+		<!-- bbs_no 컬럼값을 파라미터(column="")로 전달하면서,
+			 이름이 "com.exam.myapp.bbs.AttachDao.selectAttachList"인 SQL문을 실행하고,
+			 그 결과를 attachList 속성값으로 저장 -->
+		<!-- 첨부파일 select결과를 담아서 다시 사용하기 위함. select="실행할 select문의 아이디"-->
+		<collection property="attachList" ofType="AttachVo" column="bbs_no"
+		select="com.exam.myapp.bbs.AttachDao.selectAttachList"/>
+	</resultMap>
+	
+	<sql id="searchCondition">
+		<trim prefix="WHERE"  prefixOverrides="AND|OR">
+	    <if test="(searchType=='title' or searchType=='total') and searchWord!=null and searchWord!=''">
+	    bbs_title like '%' || #{searchWord} || '%'
+	    </if>
+	    <if test="(searchType=='content' or searchType=='total') and searchWord!=null and searchWord!=''">
+	    OR bbs_content like '%' || #{searchWord} || '%'
+	    </if>
+    </trim>
+	</sql>
+	
+	<!-- 전체 게시물의 개수를 구하는 SQL문 -->
+	<select id="selectBbsCount" resultType="int">
+		SELECT count(*)
+		FROM bbs
+    	<include refid="searchCondition"></include>
+  </select>
+
+  
+  <!-- SQL문 실행시 전달받은 데이터의 타입을 parameterType 속성에 지정 가능(생략도 가능) -->
+  
+  <select id="selectBbsList" resultType="BbsVo">
+  	select rnum, bbs_no, bbs_title, bbs_writer, bbs_reg_date, bbs_count
+	from (
+	  select rownum rnum, B.*
+	  from (
+	      select bbs_no, bbs_title, bbs_writer, bbs_reg_date, bbs_count from bbs
+	      <include refid="searchCondition"></include>
+	      ORDER BY bbs_reg_date DESC) B 
+	    
+	)
+	<![CDATA[where #{firstRecordIndex}<rnum and rnum <=#{lastRecordIndex}]]>
+  </select>
+
+  <!-- 상세정보 가져오기. -->
+  <select id="selectBbs" resultMap="BbsMap">
+    <!-- select bbs_no, bbs_title, bbs_content, bbs_writer, bbs_reg_date from bbs -->
+    
+   <!--  SELECT bbs_no, bbs_title, bbs_content, bbs_writer, bbs_reg_date, a.*
+	FROM (
+		SELECT bbs_no, bbs_title, bbs_content, bbs_writer, bbs_reg_date, bbs_count
+		FROM bbs
+		WHERE bbs_no = #{bbsNo}
+		) b
+	LEFT JOIN attach a ON (b.bbs_no=a.att_bbs_no) -->
+	
+	SELECT bbs_no, bbs_title, bbs_content, bbs_writer, bbs_reg_date, bbs_count
+	FROM bbs
+	WHERE bbs_no = #{bbsNo}
+  </select>
+  
+  <insert id="insertBbs">
+  	<!-- INSERT 문을 실행하기 전("BEFORE")에 selectKey의 SELECT 문을 실행하고
+  		 그 결과를 INT 타입 값으로 받아서
+  		 파라미터(BbsVo객체)의 bbsNo 속성에 저장 -->
+  	<selectKey keyProperty="bbsNo" order="BEFORE" resultType="int">
+  		SELECT bbs_seq.NEXTVAL FROM DUAL
+  	</selectKey>
+  	insert INTO bbs (bbs_no, bbs_title, bbs_content, bbs_writer)
+	values ( #{bbsNo}, #{bbsTitle}, #{bbsContent}, #{bbsWriter} )
+  </insert>
+  
+  <delete id="deleteBbs" >
+  	DELETE FROM bbs WHERE bbs_no = #{bbsNo}
+  </delete>
+  
+  <update id="updateBbs" >
+   	UPDATE bbs SET bbs_title = #{bbsTitle}, bbs_content = #{bbsContent}
+    WHERE bbs_no = #{bbsNo} and bbs_writer = #{bbsWriter}
+  </update>
+  
+</mapper>
+
+
+
